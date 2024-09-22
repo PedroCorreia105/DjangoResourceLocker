@@ -1,0 +1,53 @@
+version: "1.0.{build}"
+
+environment:
+    matrix:
+        - PYTHON: "C:\\Python312"
+          PYTHON_VERSION: "3.12"
+          PYTHON_ARCH: "64"
+
+    # Environment variables
+    DB_ENGINE: django.db.backends.sqlite3
+    DB_NAME: test_db.sqlite3
+
+init:
+    - "ECHO %PYTHON% %PYTHON_VERSION% %PYTHON_ARCH%"
+
+install:
+    # Add Python to PATH
+    - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+
+    # Install and configure Redis
+    - ps: |
+          $redisVersion = "3.2.100"
+          $downloadUrl = "https://github.com/microsoftarchive/redis/releases/download/win-$redisVersion/Redis-x64-$redisVersion.msi"
+          $msiPath = "$($env:TEMP)\redis.msi"
+          (New-Object Net.WebClient).DownloadFile($downloadUrl, $msiPath)
+          Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet" -Wait
+          Start-Process "C:\Program Files\Redis\redis-server.exe" -NoNewWindow -PassThru
+
+    # Upgrade pip and install required packages
+    - "python -m pip install --upgrade pip"
+    - "pip install -r requirements.txt"
+    - "pip install codecov"
+
+build: off
+
+before_test:
+    # Create directory for SQLite database
+    - md "%APPVEYOR_BUILD_FOLDER%\db"
+    - "SET DB_URL=sqlite:////%APPVEYOR_BUILD_FOLDER%/db/test_db.sqlite3"
+
+test_script:
+    - "python run_tests_with_coverage.py"
+
+after_test:
+    # Upload coverage reports
+    - "codecov -f coverage.xml -t %CODECOV_TOKEN%"
+
+artifacts:
+    - path: htmlcov
+      name: coverage_report
+
+cache:
+    - '%LOCALAPPDATA%\pip\Cache'

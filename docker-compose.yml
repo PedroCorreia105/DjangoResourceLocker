@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+    redis:
+        image: redis:latest
+        restart: always
+        ports:
+            - "6379:6379"
+        env_file:
+            - .env
+        command: /bin/sh -c "redis-server --requirepass $$REDIS_PASSWORD"
+        networks:
+            - django-redis-network
+
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - 8000:8000
+        depends_on:
+            - redis
+        env_file:
+            - .env
+        environment:
+            - REDIS_HOST=redis
+        networks:
+            - django-redis-network
+
+networks:
+    django-redis-network:
+        driver: bridge
